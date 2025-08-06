@@ -73,7 +73,6 @@ def get_comandas(
     
     return JSONResponse(content=result)
 
-#TODO: terminar de escrever esse método
 @app.get("/comandas/{id}")
 def get_comandas(
     id: int,
@@ -81,17 +80,31 @@ def get_comandas(
     offset: int = 0,
     limit: Annotated[int, Query(le=100)] = 100,
 ):
-    comandas = session.exec(
+    comanda = session.exec(
         select(Comanda).offset(offset).limit(limit).where(Comanda.id == id)
+    ).first
+
+    produtosIds = session.exec(
+        select(Comanda_Produto).where(Comanda.id == id)
     ).all()
+    
+    produtos = session.exec(select(Produto).where(Produto.id.in_(produtosIds))).all()
 
-    result = []
+    produtosFinais = []
 
-    for comanda in comandas:
-        result.append({
-            "idUsuario": comanda.idUsuario,
-            "nomeUsuario": comanda.nomeUsuario,
-            "telefoneUsuario": comanda.telefoneUsuario,
+    for produto in produtos:
+        produtosFinais.append({
+            "id": produto.id,
+            "nome": produto.nome,
+            "preco": produto.preco
         })
+
+    result = {
+        "idUsuario": comanda.idUsuario,
+        "nomeUsuario": comanda.nomeUsuario,
+        "telefoneUsuario": comanda.telefoneUsuario,
+        "produtos": produtosFinais
+    }
+
     
     return JSONResponse(content=result)
