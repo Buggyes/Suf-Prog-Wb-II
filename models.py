@@ -12,29 +12,32 @@ class Usuario(SQLModel, table=True):
 
 class Comanda(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    id_usuario: int = Field(foreign_key="usuario.id")
+    idUsuario: int = Field(foreign_key="usuario.id")
 
 class Produto(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     nome: str = Field(default=None)
     preco: Decimal = Field(default=None)
 
-class Comanda_Produto():
+class Comanda_Produto(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    id_comanda: int = Field(foreign_key="comanda.id")
-    id_produto: int = Field(foreign_key="produto.id")
+    idComanda: int = Field(foreign_key="comanda.id")
+    idProduto: int = Field(foreign_key="produto.id")
 
 #DTOs
 
 class UsuarioDTO(BaseModel):
+    id: Optional[int] = None
     nome: str
+    telefone: str
 
 class ProdutoDTO(BaseModel):
-    id: int
+    id: Optional[int] = None
     nome: str
     preco: Decimal
 
 class Comanda(BaseModel):
+    id: Optional[int] = None
     idUsuario: int
     nomeUsuario: str
     telefoneUsuario: str
