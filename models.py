@@ -7,8 +7,8 @@ getcontext().prec = 2
 
 class Comanda_Produto(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    idComanda: int = Field(foreign_key="comanda.id")
-    idProduto: int = Field(foreign_key="produto.id")
+    id_comanda: int = Field(foreign_key="comanda.id")
+    id_produto: int = Field(foreign_key="produto.id")
 
 class Usuario(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -17,7 +17,7 @@ class Usuario(SQLModel, table=True):
 
 class Comanda(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    idUsuario: int = Field(foreign_key="usuario.id")
+    id_usuario: int = Field(foreign_key="usuario.id")
     produtos: List["Produto"] = Relationship(
         back_populates="comandas",
         link_model=Comanda_Produto
@@ -47,13 +47,13 @@ class ProdutoDTO(BaseModel):
 
 class ComandaDTO(BaseModel):
     id: Optional[int] = None
-    idUsuario: int
-    nomeUsuario: str
-    telefoneUsuario: str
+    id_usuario: int
+    nome_usuario: str
+    telefone_usuario: str
     produtos: List[ProdutoDTO]
 
 class ComandaPostDTO(BaseModel):
-    idUsuario: int
-    nomeUsuario: str
-    telefoneUsuario: str
+    id_usuario: int
+    nome_usuario: str
+    telefone_usuario: str
     produtos: List[ProdutoDTO]

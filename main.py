@@ -41,15 +41,16 @@ def on_startup():
 
 @app.post("/usuario")
 def create_usuario(usuario: UsuarioDTO, session: SessionDep):
-    expression = select(Usuario).where(Usuario.nome == usuario.nome).where(Usuario.telefone == usuario.telefone)
-    result = session.exec(expression).first()
+    result = session.exec(select(Usuario)
+    .where(Usuario.nome == usuario.nome)
+    .where(Usuario.telefone == usuario.telefone)).first()
     
     if result:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário já existe")
     
-    #added_usuario = Usuario(nome=usuario.nome, telefone=usuario.telefone)
-    added_usuario = Usuario.from_orm(usuario)
-    session.add(added_usuario)
+    #addedUsuario = Usuario(nome=usuario.nome, telefone=usuario.telefone)
+    addedUsuario = Usuario.from_orm(usuario)
+    session.add(addedUsuario)
     session.commit()
     return JSONResponse(status_code=HTTPStatus.OK, content={"message": "Usuário criado com sucesso"})
         
@@ -57,20 +58,22 @@ def create_usuario(usuario: UsuarioDTO, session: SessionDep):
 @app.get("/comandas")
 def get_comandas(
     session: SessionDep,
-    offset: int = 0,
     limit: Annotated[int, Query(le=100)] = 100,
 ):
     comandas = session.exec(
-        select(ComandaDTO).offset(offset).limit(limit)
+        select(Comanda).limit(limit)
     ).all()
 
+    usuarios = []
+    for comanda in comandas:
+        usuarios.append(session.exec(select(Usuario).where(Usuario.id == comanda.id_usuario)).first())
     result = []
 
-    for comanda in comandas:
+    for usuario in usuarios:
         result.append({
-            "idUsuario": comanda.idUsuario,
-            "nomeUsuario": comanda.nomeUsuario,
-            "telefoneUsuario": comanda.telefoneUsuario,
+            "idUsuario": usuario.id,
+            "nomeUsuario": usuario.nome,
+            "telefoneUsuario": usuario.telefone,
         })
     
     return JSONResponse(content=result)
@@ -83,12 +86,18 @@ def get_comanda_by_id(
     comanda = session.exec(
         select(Comanda).where(Comanda.id == id)
     ).first()
+    if not comanda:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Essa comanda não está cadastrada")
 
     produtosIds = session.exec(
-        select(Comanda_Produto).where(Comanda_Produto.idComanda == id)
+        select(Comanda_Produto.id_produto)
+        .where(Comanda_Produto.id_comanda == id)
     ).all()
     
-    produtos = session.exec(select(Produto).where(Produto.id.in_(produtosIds))).all()
+    produtos = session.exec(
+        select(Produto)
+        .where(Produto.id.in_(produtosIds))
+        ).all()
 
     produtosFinais = []
 
@@ -99,32 +108,66 @@ def get_comanda_by_id(
             "preco": produto.preco
         })
 
-    result = {
-        "idUsuario": comanda.idUsuario,
-        "nomeUsuario": comanda.nomeUsuario,
-        "telefoneUsuario": comanda.telefoneUsuario,
-        "produtos": produtosFinais
-    }
+    usuario = session.exec(
+        select(Usuario)
+        .where(Usuario.id == comanda.id_usuario)
+    ).first()
 
+    result = {
+        "idUsuario": usuario.id,
+        "nomeUsuario": usuario.nome,
+        "telefoneUsuario": usuario.telefone,
+        "produtos": produtosFinais.__str__()
+    }
     
     return JSONResponse(content=result)
 
-#TODO: Terminar esse método (fazer as relações na tabela comanda_produto na hora de adicionar a comanda)
 @app.post("/comandas")
 def post_comanda(
     session: SessionDep,
     comanda: ComandaPostDTO
 ):
-    usuarioCheck = session.exec(select(Usuario).where(Usuario.id == comanda.idUsuario))
+    usuarioCheck = session.exec(
+        select(Usuario).where(Usuario.id == comanda.id_usuario
+        or Usuario.nome == comanda.nome_usuario
+        or Usuario.telefone == comanda.telefone_usuario)
+        ).first()
 
     if not usuarioCheck:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário passado por parâmetro não está cadastrado.")
+        addedUsuario = Usuario(
+            id=comanda.id_usuario,
+            nome=comanda.nome_usuario,
+            telefone=comanda.telefone_usuario
+        )
+        session.add(addedUsuario)
+        session.commit()
+        session.refresh(addedUsuario)
 
     produtos = comanda.produtos
     for produto in produtos:
-        dbProduto = Produto.from_orm(produto)
-        session.add(dbProduto)
+        produtoCheck = session.exec(
+            select(Produto).where(Produto.id == produto.id)
+            ).first()
+        if not produtoCheck:
+            dbProduto = Produto.from_orm(produto)
+            session.add(dbProduto)
+    session.commit()
+    
+    dbProdutos = []
+    for produto in produtos:
+        dbProdutos.append(session.exec(select(Produto)
+        .where(Produto.id == produto.id)).first())
+    
+    addedComanda = Comanda(id_usuario=comanda.id_usuario)
+    session.add(addedComanda)
+    session.commit()
+    addedComanda = session.exec(select(Comanda).where(Comanda.id_usuario == comanda.id_usuario)).first()
+
+    for dbProduto in dbProdutos:
+        addedComandaProduto = Comanda_Produto(id_comanda=addedComanda.id, id_produto=dbProduto.id)
+        session.add(addedComandaProduto)
         session.commit()
+    return get_comanda_by_id(addedComanda.id, session)
 
 
 @app.delete("/comandas/{id}")
@@ -132,11 +175,13 @@ def delete_comanda_by_id(
     id: int,
     session: SessionDep,
 ):
-    comandaProdutos = session.exec(select(Comanda_Produto).where(Comanda_Produto.idComanda == id)).all()
+    comandaProdutos = session.exec(select(Comanda_Produto).where(Comanda_Produto.id_comanda == id)).all()
+    produtosIds = []
     for comandaProduto in comandaProdutos:
+        produtosIds.append(comandaProduto.id_produto)
         session.delete(comandaProduto)
-    session.commit()
-    
+        session.commit()
+
     comanda = session.exec(select(Comanda).where(Comanda.id == id)).first()
     session.delete(comanda)
     session.commit()
