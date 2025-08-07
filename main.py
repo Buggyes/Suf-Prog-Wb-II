@@ -20,7 +20,10 @@ def get_session():
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-app = FastAPI(root_path="/RestAPIFurb")
+app = FastAPI(root_path="/RestAPIFurb",
+            title="RestAPIFurb",
+            description="Projeto implementado para a prova de suficiência de Programação Web II. Simula o fluxo de pedidos de uma lanchonete/restaurante",
+            )
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,16 +40,34 @@ def on_startup():
 
 @app.post("/usuario")
 def create_usuario(usuario: UsuarioDTO, session: SessionDep):
-    result = session.exec(select(Usuario)
-    .where(Usuario.nome == usuario.nome)
+    """
+    Cria um usuário sem nenhum vínculo a qualquer pedido.
+    - **id**: Identificador do usuário. Caso encontre outro usuário com o mesmo id, mas nome e telefone diferentes, o banco define um id disponível automaticamente.
+    - **nome**: Nome do usuário. Não é permitido ter 2 ou mais usuários com o mesmo nome.
+    - **telefone**: Telefone do usuário. Mesma regra do nome.
+    """
+    usuarioCheck = session.exec(select(Usuario)
+    .where(Usuario.nome == usuario.nome
+    or Usuario.telefone == usuario.telefone)
     ).first()
     
-    if result:
+    if usuarioCheck:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário já existe")
-    
-    addedUsuario = Usuario.from_orm(usuario)
-    session.add(addedUsuario)
+
+    usuarioCheck = session.exec(
+        select(Usuario)
+        .where(Usuario.id == usuario.id)
+    ).first()
+
+    if usuarioCheck:
+        addedUsuario = Usuario(nome=usuario.nome, telefone=usuario.telefone)
+        session.add(addedUsuario)
+    else:
+        addedUsuario = Usuario.from_orm(usuario)
+        session.add(addedUsuario)
+
     session.commit()
+        
     return JSONResponse(status_code=HTTPStatus.OK, content={"message": "Usuário criado com sucesso"})
         
 
@@ -84,7 +105,7 @@ def get_comanda_by_id(
         select(Comanda).where(Comanda.id == id)
     ).first()
     if not comanda:
-        raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
+        raise HTTPException(HTTPStatus.BAD_REQUEST, detail="Comanda não encontrada")
 
     produtosIds = session.exec(
         select(Comanda_Produto.id_produto)
@@ -178,7 +199,7 @@ def put_comanda_by_id(
     ).first()
     
     if not comanda:
-        raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
+        raise HTTPException(HTTPStatus.BAD_REQUEST, detail="Comanda não encontrada")
 
     produtoIds = [p.id for p in produtos]
     dbProdutos = session.exec(
@@ -202,7 +223,7 @@ def delete_comanda_by_id(
 ):
     comanda = session.exec(select(Comanda).where(Comanda.id == id)).first()
     if not comanda:
-        raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
+        raise HTTPException(HTTPStatus.BAD_REQUEST, detail="Comanda não encontrada")
 
     comandaProdutos = session.exec(select(Comanda_Produto).where(Comanda_Produto.id_comanda == id)).all()
     produtosIds = []
