@@ -22,7 +22,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 app = FastAPI(root_path="/RestAPIFurb",
             title="RestAPIFurb",
-            description="Projeto implementado para a prova de suficiência de Programação Web II. Simula o fluxo de pedidos de uma lanchonete/restaurante",
+            description="Projeto implementado para a prova de suficiência de Programação Web II. Simula o fluxo de pedidos de uma lanchonete/restaurante.",
             )
 
 app.add_middleware(
@@ -76,6 +76,10 @@ def get_comandas(
     session: SessionDep,
     limit: Annotated[int, Query(le=100)] = 100,
 ):
+    """
+    Busca todas as comandas, apenas retornando quais usuários elas estão atreladas.
+    - **limit**: Define o máximo de comandas que serão buscadas no banco (Padrão = 100).
+    """
     comandas = session.exec(
         select(Comanda).limit(limit)
     ).all()
@@ -101,6 +105,10 @@ def get_comanda_by_id(
     id: int,
     session: SessionDep,
 ):
+    """
+    Busca uma comanda por id, retornando o usuário que fez o pedido, e todos os produtos no pedido.
+    - **id**: Identificador da comanda.
+    """
     comanda = session.exec(
         select(Comanda).where(Comanda.id == id)
     ).first()
@@ -145,6 +153,32 @@ def post_comanda(
     session: SessionDep,
     comanda: ComandaPostDTO
 ):
+    """
+    Adiciona uma comanda no banco, fazendo o vínculo dos produtos e usuário durante o processo.
+    
+    Atributos do usuário:
+    - **id_usuario**: Identificador do usuário a qual essa comanda pertence.
+    - **nome_usuario**: Nome do usuário a qual essa comanda pertence.
+    - **telefone_usuario**: Telefone do usuário a qual essa comanda pertence.
+    
+    Atributos do(s) produto(s):    
+    - **id**: Identificador único do produto.
+    - **nome**: Nome do produto.
+    - **preco**: Preço do produto (formato: 0.00).
+    """
+    produtos = comanda.produtos
+    for produto in produtos:
+        produtoCheck = session.exec(
+            select(Produto).where(Produto.id == produto.id)
+            ).first()
+        if not produtoCheck:
+            produto.preco = round(produto.preco, 2)
+            dbProduto = Produto.from_orm(produto)
+            session.add(dbProduto)
+        elif produtoCheck.nome != produto.nome or produtoCheck.preco != produto.preco:
+            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST,detail="O produto de id "+produto.id.__str__()+" já está cadastrado, porém seu nome e/ou preço estão diferentes na requisição.")
+    session.commit()
+    
     usuarioCheck = session.exec(
         select(Usuario).where(Usuario.id == comanda.id_usuario
         or Usuario.nome == comanda.nome_usuario
@@ -161,17 +195,6 @@ def post_comanda(
         session.commit()
         session.refresh(addedUsuario)
 
-    produtos = comanda.produtos
-    for produto in produtos:
-        produtoCheck = session.exec(
-            select(Produto).where(Produto.id == produto.id)
-            ).first()
-        if not produtoCheck:
-            produto.preco = round(produto.preco, 2)
-            dbProduto = Produto.from_orm(produto)
-            session.add(dbProduto)
-    session.commit()
-    
     dbProdutos = []
     for produto in produtos:
         dbProdutos.append(session.exec(select(Produto)
@@ -194,6 +217,16 @@ def put_comanda_by_id(
     produtos: List[ProdutoPutDTO],
     session: SessionDep
 ):
+    """
+    Altera os produtos de uma comanda.
+    
+    **Atenção:** Só é possível alterar produtos já existentes na comanda. Não é possível adicionar nem remover produtos através desse método.
+    
+    Atributos do(s) produto(s) a ser(em) alterado(s):
+    - **id**: Identificador único do produto.
+    - **nome**: Nome do produto.
+    - **preco**: Preço do produto (formato: 0.00).
+    """
     comanda = session.exec(select(Comanda)
     .where(Comanda.id == id)
     ).first()
@@ -221,6 +254,10 @@ def delete_comanda_by_id(
     id: int,
     session: SessionDep,
 ):
+    """
+    Exclui uma comanda, desfazendo os vínculos de usuário e produto com a comanda.
+    - **id**: Identificador da comanda.
+    """
     comanda = session.exec(select(Comanda).where(Comanda.id == id)).first()
     if not comanda:
         raise HTTPException(HTTPStatus.BAD_REQUEST, detail="Comanda não encontrada")
