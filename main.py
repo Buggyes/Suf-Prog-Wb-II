@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated
@@ -8,6 +8,7 @@ from sqlmodel import select
 from models import *
 from services import *
 
+# URL do banco, não mudar isso em circumstância nenhuma
 database_url = "postgresql://localhost/rest_api_furb"
 
 engine = create_engine(database_url)
@@ -39,18 +40,19 @@ def on_startup():
 # Chamadas da API
 
 @app.post("/usuario")
-def create_usuario(usuario: UsuarioDTO, session: Session = Depends(get_session)):
+def create_usuario(usuario: UsuarioDTO, session: SessionDep):
     expression = select(Usuario).where(Usuario.nome == usuario.nome).where(Usuario.telefone == usuario.telefone)
     result = session.exec(expression).first()
     
-    if not result:
-        added_usuario = Usuario(nome=usuario.nome, telefone=usuario.telefone)
-        session.add(added_usuario)
-        session.commit()
-        session.refresh(added_usuario)
-        return JSONResponse(status_code=HTTPStatus.OK, content={"message": "Usuário criado com sucesso"})
+    if result:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário já existe")
+    
+    #added_usuario = Usuario(nome=usuario.nome, telefone=usuario.telefone)
+    added_usuario = Usuario.from_orm(usuario)
+    session.add(added_usuario)
+    session.commit()
+    return JSONResponse(status_code=HTTPStatus.OK, content={"message": "Usuário criado com sucesso"})
         
-    raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário já existe")
 
 @app.get("/comandas")
 def get_comandas(
@@ -59,7 +61,7 @@ def get_comandas(
     limit: Annotated[int, Query(le=100)] = 100,
 ):
     comandas = session.exec(
-        select(Comanda).offset(offset).limit(limit)
+        select(ComandaDTO).offset(offset).limit(limit)
     ).all()
 
     result = []
@@ -74,18 +76,16 @@ def get_comandas(
     return JSONResponse(content=result)
 
 @app.get("/comandas/{id}")
-def get_comandas(
+def get_comanda_by_id(
     id: int,
     session: SessionDep,
-    offset: int = 0,
-    limit: Annotated[int, Query(le=100)] = 100,
 ):
     comanda = session.exec(
-        select(Comanda).offset(offset).limit(limit).where(Comanda.id == id)
-    ).first
+        select(Comanda).where(Comanda.id == id)
+    ).first()
 
     produtosIds = session.exec(
-        select(Comanda_Produto).where(Comanda.id == id)
+        select(Comanda_Produto).where(Comanda_Produto.idComanda == id)
     ).all()
     
     produtos = session.exec(select(Produto).where(Produto.id.in_(produtosIds))).all()
@@ -108,3 +108,37 @@ def get_comandas(
 
     
     return JSONResponse(content=result)
+
+#TODO: Terminar esse método (fazer as relações na tabela comanda_produto na hora de adicionar a comanda)
+@app.post("/comandas")
+def post_comanda(
+    session: SessionDep,
+    comanda: ComandaPostDTO
+):
+    usuarioCheck = session.exec(select(Usuario).where(Usuario.id == comanda.idUsuario))
+
+    if not usuarioCheck:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário passado por parâmetro não está cadastrado.")
+
+    produtos = comanda.produtos
+    for produto in produtos:
+        dbProduto = Produto.from_orm(produto)
+        session.add(dbProduto)
+        session.commit()
+
+
+@app.delete("/comandas/{id}")
+def delete_comanda_by_id(
+    id: int,
+    session: SessionDep,
+):
+    comandaProdutos = session.exec(select(Comanda_Produto).where(Comanda_Produto.idComanda == id)).all()
+    for comandaProduto in comandaProdutos:
+        session.delete(comandaProduto)
+    session.commit()
+    
+    comanda = session.exec(select(Comanda).where(Comanda.id == id)).first()
+    session.delete(comanda)
+    session.commit()
+
+    return JSONResponse({"success":{"text":"comanda removida"}})
