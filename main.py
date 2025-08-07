@@ -6,9 +6,7 @@ from sqlmodel import create_engine, Session
 from http import HTTPStatus
 from sqlmodel import select
 from models import *
-from services import *
 
-# URL do banco, não mudar isso em circunstância nenhuma
 database_url = "postgresql://localhost/rest_api_furb"
 
 engine = create_engine(database_url)
@@ -37,8 +35,6 @@ def on_startup():
     create_db_and_tables()
 
 
-# Chamadas da API
-
 @app.post("/usuario")
 def create_usuario(usuario: UsuarioDTO, session: SessionDep):
     result = session.exec(select(Usuario)
@@ -48,7 +44,6 @@ def create_usuario(usuario: UsuarioDTO, session: SessionDep):
     if result:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário já existe")
     
-    #addedUsuario = Usuario(nome=usuario.nome, telefone=usuario.telefone)
     addedUsuario = Usuario.from_orm(usuario)
     session.add(addedUsuario)
     session.commit()
@@ -119,7 +114,7 @@ def get_comanda_by_id(
         "idUsuario": usuario.id,
         "nomeUsuario": usuario.nome,
         "telefoneUsuario": usuario.telefone,
-        "produtos": produtosFinais.__str__()
+        "produtos": produtosFinais
     }
     
     return JSONResponse(content=result)
@@ -164,10 +159,7 @@ def post_comanda(
     addedComanda = Comanda(id_usuario=comanda.id_usuario)
     session.add(addedComanda)
     session.commit()
-    addedComanda = session.exec(
-        select(Comanda)
-        .where(Comanda.id_usuario == comanda.id_usuario)
-        ).first()
+    session.refresh(addedComanda)
 
     for dbProduto in dbProdutos:
         addedComandaProduto = Comanda_Produto(id_comanda=addedComanda.id, id_produto=dbProduto.id)
@@ -175,8 +167,6 @@ def post_comanda(
         session.commit()
     return get_comanda_by_id(addedComanda.id, session)
 
-#Técnicamente isso pode ser implementado como um patch mas como
-#no enunciado pede pra implementar como put, ele está como put
 @app.put("/comandas/{id}")
 def put_comanda_by_id(
     id: int,
@@ -190,17 +180,18 @@ def put_comanda_by_id(
     if not comanda:
         raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
 
+    produtoIds = [p.id for p in produtos]
+    dbProdutos = session.exec(
+        select(Produto).where(Produto.id.in_(produtoIds))
+        ).all()
+    produtoIds = {p.id for p in dbProdutos}
     for produto in produtos:
-        dbProduto = session.exec(select(Produto)
-        .where(Produto.id == produto.id)
-        ).first()
-        if not dbProduto:
+        if produto.id not in produtoIds:
             raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="A comanda não possui um produto com o id: "+produto.id.__str__())
         dbProduto.nome = produto.nome
         dbProduto.preco = round(produto.preco,2)
         session.add(dbProduto)
-        session.commit()
-        session.refresh(dbProduto)
+    session.commit()
     
     return get_comanda_by_id(id, session)
 
@@ -218,7 +209,7 @@ def delete_comanda_by_id(
     for comandaProduto in comandaProdutos:
         produtosIds.append(comandaProduto.id_produto)
         session.delete(comandaProduto)
-        session.commit()
+    session.commit()
 
     session.delete(comanda)
     session.commit()
