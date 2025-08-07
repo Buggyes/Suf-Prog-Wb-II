@@ -8,7 +8,7 @@ from sqlmodel import select
 from models import *
 from services import *
 
-# URL do banco, não mudar isso em circumstância nenhuma
+# URL do banco, não mudar isso em circunstância nenhuma
 database_url = "postgresql://localhost/rest_api_furb"
 
 engine = create_engine(database_url)
@@ -43,7 +43,7 @@ def on_startup():
 def create_usuario(usuario: UsuarioDTO, session: SessionDep):
     result = session.exec(select(Usuario)
     .where(Usuario.nome == usuario.nome)
-    .where(Usuario.telefone == usuario.telefone)).first()
+    ).first()
     
     if result:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Usuário já existe")
@@ -66,7 +66,9 @@ def get_comandas(
 
     usuarios = []
     for comanda in comandas:
-        usuarios.append(session.exec(select(Usuario).where(Usuario.id == comanda.id_usuario)).first())
+        usuarios.append(session.exec(select(Usuario)
+            .where(Usuario.id == comanda.id_usuario)
+            ).first())
     result = []
 
     for usuario in usuarios:
@@ -87,7 +89,7 @@ def get_comanda_by_id(
         select(Comanda).where(Comanda.id == id)
     ).first()
     if not comanda:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Essa comanda não está cadastrada")
+        raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
 
     produtosIds = session.exec(
         select(Comanda_Produto.id_produto)
@@ -149,6 +151,7 @@ def post_comanda(
             select(Produto).where(Produto.id == produto.id)
             ).first()
         if not produtoCheck:
+            produto.preco = round(produto.preco, 2)
             dbProduto = Produto.from_orm(produto)
             session.add(dbProduto)
     session.commit()
@@ -161,7 +164,10 @@ def post_comanda(
     addedComanda = Comanda(id_usuario=comanda.id_usuario)
     session.add(addedComanda)
     session.commit()
-    addedComanda = session.exec(select(Comanda).where(Comanda.id_usuario == comanda.id_usuario)).first()
+    addedComanda = session.exec(
+        select(Comanda)
+        .where(Comanda.id_usuario == comanda.id_usuario)
+        ).first()
 
     for dbProduto in dbProdutos:
         addedComandaProduto = Comanda_Produto(id_comanda=addedComanda.id, id_produto=dbProduto.id)
@@ -169,12 +175,44 @@ def post_comanda(
         session.commit()
     return get_comanda_by_id(addedComanda.id, session)
 
+#Técnicamente isso pode ser implementado como um patch mas como
+#no enunciado pede pra implementar como put, ele está como put
+@app.put("/comandas/{id}")
+def put_comanda_by_id(
+    id: int,
+    produtos: List[ProdutoPutDTO],
+    session: SessionDep
+):
+    comanda = session.exec(select(Comanda)
+    .where(Comanda.id == id)
+    ).first()
+    
+    if not comanda:
+        raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
+
+    for produto in produtos:
+        dbProduto = session.exec(select(Produto)
+        .where(Produto.id == produto.id)
+        ).first()
+        if not dbProduto:
+            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="A comanda não possui um produto com o id: "+produto.id.__str__())
+        dbProduto.nome = produto.nome
+        dbProduto.preco = round(produto.preco,2)
+        session.add(dbProduto)
+        session.commit()
+        session.refresh(dbProduto)
+    
+    return get_comanda_by_id(id, session)
 
 @app.delete("/comandas/{id}")
 def delete_comanda_by_id(
     id: int,
     session: SessionDep,
 ):
+    comanda = session.exec(select(Comanda).where(Comanda.id == id)).first()
+    if not comanda:
+        raise HTTPException(HTTPStatus.NOT_FOUND, detail="Comanda não encontrada")
+
     comandaProdutos = session.exec(select(Comanda_Produto).where(Comanda_Produto.id_comanda == id)).all()
     produtosIds = []
     for comandaProduto in comandaProdutos:
@@ -182,7 +220,6 @@ def delete_comanda_by_id(
         session.delete(comandaProduto)
         session.commit()
 
-    comanda = session.exec(select(Comanda).where(Comanda.id == id)).first()
     session.delete(comanda)
     session.commit()
 

@@ -1,9 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlmodel import Field, SQLModel, Relationship
-from decimal import getcontext, Decimal
-
-getcontext().prec = 2
 
 class Comanda_Produto(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -26,7 +23,7 @@ class Comanda(SQLModel, table=True):
 class Produto(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     nome: str
-    preco: Decimal
+    preco: float
     comandas: List["Comanda"] = Relationship(
         back_populates="produtos",
         link_model=Comanda_Produto
@@ -43,7 +40,7 @@ class UsuarioDTO(BaseModel):
 class ProdutoDTO(BaseModel):
     id: Optional[int] = None
     nome: str
-    preco: Decimal
+    preco: float
 
 class ComandaDTO(BaseModel):
     id: Optional[int] = None
@@ -57,3 +54,8 @@ class ComandaPostDTO(BaseModel):
     nome_usuario: str
     telefone_usuario: str
     produtos: List[ProdutoDTO]
+
+class ProdutoPutDTO(BaseModel):
+    id: int
+    nome: str
+    preco: float
