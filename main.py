@@ -115,7 +115,7 @@ def post_comanda(
         return result
     except Exception as e:
         msg = e.args.__str__()
-        if 'produto de id' in msg:
+        if 'produto de id' in msg or 'Não foi possível' in msg:
             raise HTTPException(status_code=HTTPStatus.BAD_REQUEST,detail=msg)
         else:
             print(traceback.format_exc())

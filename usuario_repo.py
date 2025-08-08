@@ -19,7 +19,7 @@ def get_usuario_by_id_nome_or_telefone(id, nome, telefone, session):
                 or Usuario.telefone == telefone)
             ).first()
 
-def add_usuario(usuario, session):
+def add_usuario(usuario: Usuario, session):
     session.add(usuario)
     session.commit()
     session.refresh(usuario)

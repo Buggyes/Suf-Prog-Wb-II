@@ -11,11 +11,11 @@ def get_all_comandas(limit, session):
             .limit(limit)
             ).all()
 
-def add_comanda(comanda, session):
+def add_comanda(comanda: Comanda, session):
     session.add(comanda)
     session.commit()
-    session.refresh(comanda)
 
-def delete_comanda(comanda, session):
+def delete_comanda(comanda: Comanda, session):
     session.delete(comanda)
     session.commit()
+    session.refresh(comanda)

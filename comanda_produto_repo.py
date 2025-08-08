@@ -11,7 +11,7 @@ def get_comanda_produtos_by_comanda_id(id, session):
             .where(Comanda_Produto.id_comanda == id)
             ).all()
 
-def add_comanda_produto(comandaProduto, session):
+def add_comanda_produto(comandaProduto: Comanda_Produto, session):
     session.add(comandaProduto)
     session.commit()
     session.refresh(comandaProduto)
