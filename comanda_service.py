@@ -14,7 +14,7 @@ def buscar_comandas(limit, session):
     result = []
     for usuario in usuarios:
         result.append({
-            "idUsuario": usuaio.id,
+            "idUsuario": usuario.id,
             "nomeUsuario": usuario.nome,
             "telefoneUsuario": usuario.telefone,
         })
