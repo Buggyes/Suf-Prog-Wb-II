@@ -18,4 +18,3 @@ def add_comanda(comanda: Comanda, session):
 def delete_comanda(comanda: Comanda, session):
     session.delete(comanda)
     session.commit()
-    session.refresh(comanda)

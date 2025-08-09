@@ -15,3 +15,7 @@ def create_produto(produto: Produto, session):
     session.add(produto)
     session.commit()
     session.refresh(produto)
+
+def delete_produto(produto: Produto, session):
+    session.delete(produto)
+    session.commit()

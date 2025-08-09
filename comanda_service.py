@@ -63,6 +63,7 @@ def cadastrar_comanda(comanda: ComandaPostDTO, session):
     session.commit()
     
     usuarioCheck = get_usuario_by_id(comanda.id_usuario, session)
+    usuarioCheck2 = get_usuario_by_nome_and_telefone(comanda.nome_usuario, comanda.telefone_usuario, session)
 
     if not usuarioCheck:
         addedUsuario = Usuario(
@@ -72,6 +73,9 @@ def cadastrar_comanda(comanda: ComandaPostDTO, session):
         )
         add_usuario(addedUsuario, session)
 
+    elif usuarioCheck2:
+        comanda.id_usuario = usuarioCheck2.id
+        
     elif usuarioCheck and (usuarioCheck.nome != comanda.nome_usuario or usuarioCheck.telefone != comanda.telefone_usuario):
         addedUsuario = Usuario(
             nome=comanda.nome_usuario,
@@ -79,6 +83,8 @@ def cadastrar_comanda(comanda: ComandaPostDTO, session):
         )
         add_usuario(addedUsuario, session)
         comanda.id_usuario = addedUsuario.id
+    
+
 
 
     dbProdutos = []
@@ -120,6 +126,11 @@ def remover_comanda(id, session):
     produtosIds = []
     for comandaProduto in comandaProdutos:
         produtosIds.append(comandaProduto.id_produto)
-        session.delete(comandaProduto)
-    session.commit()
+        delete_comanda_produto(comandaProduto, session)
+    for produtoId in produtosIds:
+        produtoCheck = get_comanda_produtos_by_produto_id(produtoId, session)
+        if not produtoCheck:
+            dbProduto = get_produto_by_id(produtoId, session)
+            delete_produto(dbProduto, session)
+
     delete_comanda(comanda, session)
