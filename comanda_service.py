@@ -114,9 +114,12 @@ def alterar_comanda(id, produtos: ProdutoPutDTO, session):
     for produto in produtos:
         if produto.id not in produtosIds:
             raise Exception("A comanda não possui um produto com o id: "+produto.id.__str__())
-        dbProduto = Produto(nome=produto.nome, preco=round(produto.preco,2))
-        session.add(dbProduto)
-    session.commit()
+    
+    for produto in produtos:
+        dbProduto = get_produto_by_id(produto.id, session)
+        dbProduto.nome = produto.nome
+        dbProduto.preco = produto.preco
+        update_produto(dbProduto, session)
     
     return buscar_comanda_by_id(id, session)
 
