@@ -21,7 +21,7 @@ def buscar_comandas(limit, session):
     
     return result
 
-def buscar_comanda_by_id(id, session):
+def buscar_comanda_by_id(id, session, showId = False):
     comanda = get_comanda_by_id(id, session)
     if not comanda:
         raise Exception("Comanda não encontrada")
@@ -42,11 +42,17 @@ def buscar_comanda_by_id(id, session):
     usuario = get_usuario_by_id(comanda.id_usuario, session)
 
     result = {
-        "idUsuario": usuario.id,
-        "nomeUsuario": usuario.nome,
-        "telefoneUsuario": usuario.telefone,
-        "produtos": produtosFinais
-    }
+            "id": id,
+            "idUsuario": usuario.id,
+            "nomeUsuario": usuario.nome,
+            "telefoneUsuario": usuario.telefone,
+            "produtos": produtosFinais
+        } if showId else {
+            "idUsuario": usuario.id,
+            "nomeUsuario": usuario.nome,
+            "telefoneUsuario": usuario.telefone,
+            "produtos": produtosFinais
+        }
 
     return result
 
@@ -83,9 +89,6 @@ def cadastrar_comanda(comanda: ComandaPostDTO, session):
         )
         add_usuario(addedUsuario, session)
         comanda.id_usuario = addedUsuario.id
-    
-
-
 
     dbProdutos = []
     for produto in produtos:
@@ -97,7 +100,7 @@ def cadastrar_comanda(comanda: ComandaPostDTO, session):
     for dbProduto in dbProdutos:
         addedComandaProduto = Comanda_Produto(id_comanda=addedComanda.id, id_produto=dbProduto.id)
         add_comanda_produto(addedComandaProduto, session)
-    return buscar_comanda_by_id(addedComanda.id, session)
+    return buscar_comanda_by_id(addedComanda.id, session, True)
 
 def alterar_comanda(id, produtos: ProdutoPutDTO, session):
     comanda = get_comanda_by_id(id, session)
