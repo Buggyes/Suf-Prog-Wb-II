@@ -71,16 +71,15 @@ def cadastrar_comanda(comanda: ComandaPostDTO, session):
             telefone=comanda.telefone_usuario
         )
         add_usuario(addedUsuario, session)
-    
-    elif usuarioCheck and usuarioCheck.nome != comanda.nome_usuario and usuarioCheck.telefone != comanda.telefone_usuario:
+
+    elif usuarioCheck and (usuarioCheck.nome != comanda.nome_usuario or usuarioCheck.telefone != comanda.telefone_usuario):
         addedUsuario = Usuario(
             nome=comanda.nome_usuario,
             telefone=comanda.telefone_usuario
         )
         add_usuario(addedUsuario, session)
+        comanda.id_usuario = addedUsuario.id
 
-    elif usuarioCheck.id == comanda.id_usuario and (usuarioCheck.nome == comanda.nome_usuario or usuarioCheck.telefone == comanda.telefone_usuario):
-        raise Exception("Não foi possível cadastrar o usuário da comanda, pois ele conflita com as informações de outros usuários (nome e/ou telefone).")
 
     dbProdutos = []
     for produto in produtos:
